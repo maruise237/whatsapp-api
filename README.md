@@ -60,12 +60,10 @@ docker run -d \
 
 ## ☁️ Cloud Deployment
 
-### Vercel
-This project includes a `vercel.json` for deployment on Vercel using the Go runtime.
-**Note:** Since WhatsApp requires a persistent WebSocket connection, serverless environments like Vercel may have limitations. For a more stable experience, use a persistent server (VPS, Docker, Railway, etc.).
+### Recommended: Railway / Render / Fly.io
+These platforms are highly recommended as they support persistent long-running processes and Docker. They will automatically detect the `Dockerfile` and maintain the persistent connection required for WhatsApp.
 
-### Railway / Render
-These platforms are recommended as they support persistent long-running processes. They will automatically detect the `Dockerfile` or use the Go build process.
+> **Note on Vercel:** This project is **not compatible** with Vercel or other serverless platforms because it requires a persistent WebSocket connection to WhatsApp. Use a platform that supports persistent servers or Docker containers.
 
 
 ## 📡 API
