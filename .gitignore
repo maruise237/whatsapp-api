@@ -1,3 +1,8 @@
 .env
-build
+build/
 session.db*
+*.log
+main
+whatsappapi
+whatsapp-api-server
+whatsapp-web-api

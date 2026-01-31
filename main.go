@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -43,33 +44,67 @@ var (
 	user         string
 	pass         string
 	listenAddr   string
+	dbPath       string
 	version      string
 )
 
-func init() {
+func loadConfig() {
 	_ = godotenv.Load()
 	textWebhook = os.Getenv("TEXT_WEBHOOK_URL")
 	voiceWebhook = os.Getenv("VOICE_WEBHOOK_URL")
 	user = os.Getenv("WEBHOOK_USER")
 	pass = os.Getenv("WEBHOOK_PASS")
 	listenAddr = os.Getenv("LISTEN_ADDR")
+	dbPath = os.Getenv("DB_PATH")
+
+	if dbPath == "" {
+		dbPath = "session.db"
+	}
+
+	// Fallback for cloud platforms like Vercel/Railway
+	if listenAddr == "" {
+		port := os.Getenv("PORT")
+		if port != "" {
+			listenAddr = "0.0.0.0:" + port
+		}
+	}
+
 	if voiceWebhook == "" || textWebhook == "" || user == "" || pass == "" || listenAddr == "" {
-		panic("TEXT_WEBHOOK_URL, VOICE_WEBHOOK_URL, WEBHOOK_USER, WEBHOOK_PASS, LISTEN_ADDR must be set in .env")
+		log.Fatalf("Error: TEXT_WEBHOOK_URL, VOICE_WEBHOOK_URL, WEBHOOK_USER, WEBHOOK_PASS, LISTEN_ADDR must be set.\n"+
+			"Current values:\n"+
+			"  TEXT_WEBHOOK_URL: %s\n"+
+			"  VOICE_WEBHOOK_URL: %s\n"+
+			"  WEBHOOK_USER: %s\n"+
+			"  WEBHOOK_PASS: %s\n"+
+			"  LISTEN_ADDR: %s\n",
+			textWebhook, voiceWebhook, user, pass, listenAddr)
 	}
 }
 
 // sendToWebhook is a helper function to send new whatsapp message to the configured webhook
 func sendToWebhook(payload OutgoingWebhookPayload) {
 	fmt.Println(payload.Sender, payload.Message)
-	data, _ := json.Marshal(payload)
-	req, _ := http.NewRequest("POST", textWebhook, bytes.NewBuffer(data))
+	data, err := json.Marshal(payload)
+	if err != nil {
+		fmt.Println("failed to marshal payload:", err)
+		return
+	}
+	req, err := http.NewRequest("POST", textWebhook, bytes.NewBuffer(data))
+	if err != nil {
+		fmt.Println("failed to build request:", err)
+		return
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.SetBasicAuth(user, pass)
 	client := &http.Client{}
 	res, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("Error in calling webhook, %T\n", err)
-	} else if res.StatusCode != 200 {
+		return
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
 		fmt.Printf("Error in calling webhook, %s\n", res.Status)
 	}
 }
@@ -130,6 +165,8 @@ func sendToWebhookVoice(payload OutgoingWebhookPayload) {
 		fmt.Printf("----->>> Error in calling webhook, %T\n", err)
 		return
 	}
+	defer res.Body.Close()
+
 	if res.StatusCode != 200 {
 		fmt.Printf("----->>> Error in calling webhook, %s\n", res.Status)
 		return
@@ -139,7 +176,8 @@ func sendToWebhookVoice(payload OutgoingWebhookPayload) {
 // newClient initializes a new WhatsApp client using whatsmeow and a SQLite database
 func newClient(ctx context.Context) *whatsmeow.Client {
 	dbLog := waLog.Stdout("Database", "DEBUG", true)
-	container, err := sqlstore.New(ctx, "sqlite", "file:session.db?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", dbLog)
+	dbConn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", dbPath)
+	container, err := sqlstore.New(ctx, "sqlite", dbConn, dbLog)
 	if err != nil {
 		panic(err)
 	}
@@ -263,6 +301,7 @@ func startClient(ctx context.Context, client *whatsmeow.Client) {
 }
 
 func main() {
+	loadConfig()
 	fmt.Println("version " + version)
 	ctx := context.Background()
 	client := newClient(ctx)
