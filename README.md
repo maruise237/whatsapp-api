@@ -21,21 +21,51 @@ It delivers incoming WhatsApp messages (text and voice notes) to n8n webhooks, a
 - Download Binary from Releases
 - Create .env:
 
-```
+```ini
 TEXT_WEBHOOK_URL=http://localhost:8080/webhook/whatsapp
 VOICE_WEBHOOK_URL=http://localhost:8080/webhook/whatsapp/voice
 WEBHOOK_USER=youruser
 WEBHOOK_PASS=yourpass
 LISTEN_ADDR=0.0.0.0:1012
+# Optional:
+# PORT=1012
+# DB_PATH=session.db
 ```
 
 - Run:
 
-```
+```bash
 ./whatsappapi-linux-amd64
 ```
 
 NOTE: On first run, scan the displayed QR code in WhatsApp to pair the device.
+
+## 🐳 Docker Deployment
+
+You can run this API using Docker for better persistence and isolation.
+
+```bash
+docker build -t whatsapp-api-server .
+docker run -d \
+  --name whatsapp-api \
+  -v $(pwd)/session.db:/app/session.db \
+  -e TEXT_WEBHOOK_URL=... \
+  -e VOICE_WEBHOOK_URL=... \
+  -e WEBHOOK_USER=... \
+  -e WEBHOOK_PASS=... \
+  -e LISTEN_ADDR=0.0.0.0:1012 \
+  -p 1012:1012 \
+  whatsapp-api-server
+```
+
+## ☁️ Cloud Deployment
+
+### Vercel
+This project includes a `vercel.json` for deployment on Vercel using the Go runtime.
+**Note:** Since WhatsApp requires a persistent WebSocket connection, serverless environments like Vercel may have limitations. For a more stable experience, use a persistent server (VPS, Docker, Railway, etc.).
+
+### Railway / Render
+These platforms are recommended as they support persistent long-running processes. They will automatically detect the `Dockerfile` or use the Go build process.
 
 
 ## 📡 API
